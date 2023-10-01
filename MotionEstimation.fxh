@@ -155,12 +155,9 @@ float getBlockFeatureLevel(float2 block[BLOCK_AREA])
 //Loss
 float perPixelLoss(float2 grayDepthA, float2 grayDepthB)
 {
-    float2 loss = (grayDepthA - grayDepthB); 
-    float2 finalLoss = float2(0, 0);
-    
-    finalLoss = abs(loss);
+    float finalLoss = abs(grayDepthA.r - grayDepthB.r);
 
-    return lerp(finalLoss.g, finalLoss.r, 0.75);
+    return finalLoss;
 }
 
 float blockLoss(float2 blockA[BLOCK_AREA], float2 blockB[BLOCK_AREA])
@@ -174,23 +171,6 @@ float blockLoss(float2 blockA[BLOCK_AREA], float2 blockB[BLOCK_AREA])
     return (summedLosses / float(BLOCK_AREA));
 }
 
-// Depth & Nornmals
-//Depth
-
-//Normal Vector
-float3 GetNormalVector(float2 texcoord)
-{
-	float3 offset = float3(ReShade::PixelSize.xy, 0.0);
-	float2 posCenter = texcoord.xy;
-	float2 posNorth  = posCenter - offset.zy;
-	float2 posEast   = posCenter + offset.xz;
-
-	float3 vertCenter = float3(posCenter - 0.5, 1) * ReShade::GetLinearizedDepth(posCenter);
-	float3 vertNorth  = float3(posNorth - 0.5,  1) * ReShade::GetLinearizedDepth(posNorth);
-	float3 vertEast   = float3(posEast - 0.5,   1) * ReShade::GetLinearizedDepth(posEast);
-
-	return normalize(cross(vertCenter - vertNorth, vertCenter - vertEast)) * 0.5 + 0.5;
-}
 
 
 // Motion Vectors
@@ -252,68 +232,82 @@ float2 getCircleSampleOffset(const int samplesOnCircle, const float radiusInPixe
 	return delta;
 }
 
-//Calculate Motion of a Layer
+
+/**
+ * Calculate motion for a specific layer based on pixel block comparison.
+ *
+ * @param coord Coordinates for the local block in the current frame.
+ * @param searchStart Initial search coordinates for the comparison block in the last frame.
+ * @param curBuffer Sampler for the current frame.
+ * @param lastBuffer Sampler for the last frame.
+ * @param iterations Number of search iterations.
+ * @return Motion vector, features level, and loss in packed G-buffer format.
+ */
+
 float4 CalcMotionLayer(float2 coord, float2 searchStart, sampler curBuffer, sampler lastBuffer, const int iterations)
 {
-	//Local Block from current Frame
-	float2 localBlock[BLOCK_AREA];
-	getBlock(coord, localBlock, curBuffer);
+    // Extract a block of pixels from the current frame
+    float2 localBlock[BLOCK_AREA];
+    getBlock(coord, localBlock, curBuffer);
 
-	//Block from last Frame to compare against
-	float2 searchBlock[BLOCK_AREA];
-	getBlock(coord + searchStart, searchBlock, lastBuffer);
+    // Extract a block of pixels from the last frame for comparison
+    float2 searchBlock[BLOCK_AREA];
+    getBlock(coord + searchStart, searchBlock, lastBuffer);
 
-	//Check if current pixel can/should be tracked
-	float localLoss = blockLoss(localBlock, searchBlock);
-	float localFeatures = getBlockFeatureLevel(localBlock);
+    // Assess suitability of local block for motion tracking
+    float localLoss = blockLoss(localBlock, searchBlock);
+    float localFeatures = getBlockFeatureLevel(localBlock);
 
-	//Keep Track of stuff while searching
-	float lowestLoss = localLoss;
-	float featuresAtLowestLoss = localFeatures;
-	float2 bestMotion = float2(0, 0);
-	float2 searchCenter = searchStart;
+    // Initialize tracking variables
+    float lowestLoss = localLoss;
+    float featuresAtLowestLoss = localFeatures;
+    float2 bestMotion = float2(0, 0);
+    float2 searchCenter = searchStart;
 
+    // Initialize random value for stochastic sampling
+    float randomValue = randFloatSeed2(coord) * 100;
+    randomValue += randFloatSeed2(float2(randomValue, float(framecount % uint(8)))) * 360;
 
-	float randomValue = randFloatSeed2(coord) * 100;
-	randomValue += randFloatSeed2(float2(randomValue, float(framecount % uint(16)))) * 360;
-	
-	//iterate for better accuracy
-	for (int i = 0; i < iterations; i++) 
-	{
-		randomValue = randFloatSeed2(float2(randomValue, i * 16)) * 100;
-		//through Neighborhood and find Offset with lowest blockLoss
-		for (int s = 0; s < UI_ME_SAMPLES_PER_ITERATION; s++) 
-		{
-			float2 pixelOffset = (getCircleSampleOffset(UI_ME_SAMPLES_PER_ITERATION, 1, s, randomValue) / tex2Dsize(lastBuffer)) / pow(2, i);
-			float2 samplePos = coord + searchCenter + pixelOffset;
-			float2 searchBlockB[BLOCK_AREA];
-			getBlock(samplePos, searchBlockB, lastBuffer);
-			float loss = blockLoss(localBlock, searchBlockB);
+    // Iterate to improve motion estimation
+    for (int i = 0; i < iterations; i++) 
+    {
+        // Update random value
+        randomValue = randFloatSeed2(float2(randomValue, i * 16)) * 100;
 
-			if (loss < lowestLoss)
-			{
-				lowestLoss = loss;
-				bestMotion = pixelOffset;
-				featuresAtLowestLoss = getBlockFeatureLevel(searchBlockB);
-			}
-		}
-		searchCenter += bestMotion;
-		bestMotion = float2(0, 0);
-	}
-	return packGbuffer(searchCenter, featuresAtLowestLoss, lowestLoss); 
+        // Search neighborhood to find the offset that minimizes block loss
+        for (int s = 0; s < UI_ME_SAMPLES_PER_ITERATION; s++) 
+        {
+            float2 pixelOffset = getCircleSampleOffset(UI_ME_SAMPLES_PER_ITERATION, 1, s, randomValue) / tex2Dsize(lastBuffer) / pow(2, i);
+            float2 samplePos = coord + searchCenter + pixelOffset;
+            float2 searchBlockB[BLOCK_AREA];
+            getBlock(samplePos, searchBlockB, lastBuffer);
+            float loss = blockLoss(localBlock, searchBlockB);
 
+            // Update best match if a lower loss is found
+            if (loss < lowestLoss)
+            {
+                lowestLoss = loss;
+                bestMotion = pixelOffset;
+                featuresAtLowestLoss = getBlockFeatureLevel(searchBlockB);
+            }
+        }
+        // Update search center for the next iteration
+        searchCenter += bestMotion;
+        bestMotion = float2(0, 0);
+    }
+
+    // Pack and return the results
+    return packGbuffer(searchCenter, featuresAtLowestLoss, lowestLoss);
 }
 
 //Upscale to next Pyramid layer while supressing wrong / unlikely vectors
 float4 UpscaleMotion(float2 texcoord, sampler curLevelGray, sampler lowLevelGray, sampler lowLevelMotion)
 {
-	float localDepth = tex2D(curLevelGray, texcoord).g;
-
 	float summedWeights = 0.00001;
 	float4 summedMotion = 0;
 
 	float randomAngle = randFloatSeed2(texcoord) * 100;
-	randomAngle = randFloatSeed2(float2(randomAngle, float(framecount % uint(8)))) * 360;
+	randomAngle += randFloatSeed2(float2(randomAngle, float(framecount % uint(8)))) * 360;
 
 
 	for (int s = 0; s < UI_ME_PYRAMID_UPSCALE_SAMPLES; s++)	
@@ -321,234 +315,18 @@ float4 UpscaleMotion(float2 texcoord, sampler curLevelGray, sampler lowLevelGray
 		float randomDistBase = randFloatSeed2(float2(randomAngle, s * 100)) * 100;
 		float dist = 0.5 + ((randomDistBase) % uint(UI_ME_PYRAMID_UPSCALE_FILTER_RADIUS));
 
-
-		float2 pixelOffset = getCircleSampleOffset(UI_ME_PYRAMID_UPSCALE_SAMPLES, dist, s, randomAngle) / tex2Dsize(lowLevelMotion);
-		float2 samplePos = texcoord + pixelOffset;
+		float2 samplePos = texcoord + (getCircleSampleOffset(UI_ME_PYRAMID_UPSCALE_SAMPLES, dist, s, randomAngle) / tex2Dsize(lowLevelMotion));
 		
 		float4 motionSampleLowLevel = tex2D(lowLevelMotion, samplePos);
 
 		float weightSpeed  		= 1.0 / (1.0 + (length(motionSampleLowLevel.rg * tex2Dsize(lowLevelMotion) * 0.1)));
-		float weightFeatures   	= 0.5 + (motionSampleLowLevel.b * 3);
+		float weightFeatures   	= 0.5 + (motionSampleLowLevel.b * 1);
 
-		float weight = weightSpeed * weightSpeed;
+		float weight = weightSpeed * weightFeatures;
 
 		summedWeights += weight;
 		summedMotion += weight * motionSampleLowLevel;
 	}
-
-
-	//sample and weight neighborhood pixels ond multipe circles around the center
-	// [loop]
-	// for (int r = 0; r < UI_ME_PYRAMID_UPSCALE_FILTER_RINGS; r++)	
-	// {
-
-
-	// 	int sampleCount = clamp(UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING / ((r * 0.5) + 1), 1, UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING);
-	// 	float radius = distPerCircle * (r + 1);
-	// 	float circleWeight = 1.0 / (r + 1);
-	// 	randomValue += randFloatSeed2(float2(randomValue, r * 10)) * 100;
-	// 	[loop]
-	// 	for (int i = 0; i < sampleCount; i++)
-	// 	{
-	// 		float2 samplePos = texcoord + (getCircleSampleOffset(sampleCount, radius, i, randomValue) / tex2Dsize(lowLevelGray));
-	// 		float nDepth = tex2D(lowLevelGray, samplePos).r;
-	// 		float4 llGBuffer = tex2D(lowLevelMotion, samplePos);
-	// 		float loss = llGBuffer.a;
-	// 		float features = llGBuffer.b;
-
-	// 		float weightDepth = saturate(1.0 - (abs(nDepth - localDepth) * 1));
-	// 		float weightLoss = saturate(1.0 - (loss * 1));
-	// 		float weightFeatures = saturate((features * 100));
-	// 		float weightLength = saturate(1.0 - (length(motionFromGBuffer(llGBuffer) * 1)));
-	// 		float weight = saturate(0.000001 + (weightFeatures * weightLoss * weightDepth * weightLength * circleWeight));
-
-	// 		summedWeights += weight;
-	// 		summedMotion += motionFromGBuffer(llGBuffer) * weight;
-	// 		summedFeatures += features * weight;
-	// 		summedLoss += loss * weight;
-	// 	}
-	// }
-
-
 	
 	return summedMotion / summedWeights;
 }
-
-
-//Final Filter
-float4 FilterFinal(float2 texcoord, sampler2D motion, sampler2D color, bool y, float radius, float samplesPerPixel)
-{
-	float4 localColor = tex2D(color, texcoord);
-	float localDepth = ReShade::GetLinearizedDepth(texcoord);
-	float3 localNormal = GetNormalVector(texcoord);
-	float4 localMotionBuffer = tex2D(motion, texcoord);
-	float2 localMotion = motionFromGBuffer(localMotionBuffer);
-	float localLoss = localMotionBuffer.a;
-	
-	float4 summedMotion = localMotionBuffer;
-	float summedWeights = 1.0;
-	const int filterRadius = 10;
-	const int samplesPerSide = filterRadius / samplesPerPixel;
-	float distPerSample = filterRadius / samplesPerSide;
-
-	for (int i = -samplesPerSide; i < samplesPerSide + 1; i++)
-	{
-
-		float2 samplePos = texcoord;
-		if (y)
-		{
-			float pixelOffset = distPerSample * i * ReShade::PixelSize.y;
-			samplePos += float2(0, pixelOffset);
-		}
-		else
-		{
-			float pixelOffset = distPerSample * i * ReShade::PixelSize.x;
-			samplePos += float2(pixelOffset, 0);
-		}
-
-		
-		float4 sColor = tex2D(color, samplePos);
-		float sDepth = ReShade::GetLinearizedDepth(samplePos);
-		float3 sNormal = GetNormalVector(samplePos);
-		float4 sMotionBuffer = tex2D(motion, samplePos);
-		float2 sMotion = motionFromGBuffer(sMotionBuffer);
-		float sloss = sMotionBuffer.a;
-
-		float ColorWeight = saturate(1.0 - (length(sColor - localColor)));
-		float depthWeight = saturate(1.0 - (abs(sDepth - localDepth) * 10));
-		float normalWeight = saturate(1.0 - (length(localNormal - sNormal) * 10));
-		float lossWeight = saturate(1.0 - ((sloss - localLoss) * 2));
-
-		float w = 1.0 / (abs(i) + 1);
-		float weight = w * ColorWeight * depthWeight * normalWeight * lossWeight;
-
-		summedWeights += weight;
-		summedMotion += sMotionBuffer * weight;
-	}
-	return summedMotion / summedWeights;
-}
-
-/*
-//Temporal filtering of Motion Vecots with motion aware, shaped neigborhood deviation clamping
-float4 FilterMotionTemporal(float2 texcoord, float4 curMotionBuffer,  sampler lastFinalMotionLayer0)
-{
-	float4 returnValue = float4(0, 0, 0, 0);
-
-	const int sampleCount = 9;
-	const float2 samplePattern[sampleCount] = { 	
-		float2(-0.7, -0.7), float2(0, -1), 	float2(0.7, -0.7), 
-		float2(-1, 0), 	 	float2(0, 0),	float2(1, 0), 
-		float2(-0.7, 0.7), 	float2(0, 1), 	float2(0.7, 0.7) 
-	};
-
-	float4 curLocalMotionSamples[sampleCount];
-	for (int i = 0; i < sampleCount; i++)
-	{
-		float2 samplePos = texcoord + (samplePattern[i] / tex2Dsize(curGray));
-		curLocalMotionSamples[i] = tex2D(curMotion, samplePos);
-	}
-
-	float4 average = 0;
-	for (int i = 0; i < sampleCount; i++)
-		average += curLocalMotionSamples[i];
-	average /= float(sampleCount);
-
-	float4 standartDeviation = float4(0, 0, 0, 0);
-	for (int i = 0; i < sampleCount; i++)
-		standartDeviation += abs(curLocalMotionSamples[i] - average);	
-    standartDeviation /= float(sampleCount);
-
-	float4 bufferMin = saturate(average - standartDeviation);
-	float4 bufferMax = saturate(average + standartDeviation);
-
-	float4 clampedPrior;
-
-	return returnValue;
-}*/
-
-
-/*
-//This is sadly useless as just sampling many times from a texture is faster than to sample an area once and than interpolalte on our own :/ even when you sample some pixels many times
-//Search Area
-void getSearchArea(float2 center, out float2 searchArea[SEARCH_AREA_AREA], sampler grayIn)
-{
-    for (int x = 0; x < SEARCH_AREA_SIZE; x++)
-    {
-        for (int y = 0; y < SEARCH_AREA_SIZE; y++)
-        {
-            searchArea[(SEARCH_AREA_SIZE * y) + x] = tex2Doffset(grayIn, center, int2(x - SEARCH_AREA_HALF, y - SEARCH_AREA_HALF)).rg;
-        }
-    }
-}
-
-float2 sampleSearchArea(int2 coord, float2 searchArea[SEARCH_AREA_AREA])
-{
-    int2 pos = clamp((coord), int2(0, 0), int2(SEARCH_AREA_SIZE - 1, SEARCH_AREA_SIZE - 1));
-    return searchArea[(SEARCH_AREA_SIZE * pos.y) + pos.x];
-}
-
-float2 sampleSearchAreaCendtered(int2 coord, float2 searchArea[SEARCH_AREA_AREA])
-{
-    int2 pos = coord + int2(SEARCH_AREA_HALF, SEARCH_AREA_HALF);
-    return sampleSearchArea(pos, searchArea);
-}
-
-
-float2 sampleSearchAreaBilinear(float2 coord, float2 searchArea[SEARCH_AREA_AREA])
-{
-    int x1 = clamp(int(coord.x),        0, SEARCH_AREA_SIZE - 1);
-    int x2 =  clamp(int(coord.x + 1.0), 0, SEARCH_AREA_SIZE - 1);
-    int y1 =  clamp(int(coord.y),       0, SEARCH_AREA_SIZE - 1);
-    int y2 =  clamp(int(coord.y + 1.0), 0, SEARCH_AREA_SIZE - 1);
-
-    float dx = coord.x - float(x1);
-    float dy = coord.y - float(y1);
-
-    float2 upLeft = sampleSearchArea(int2(x1, y1), searchArea);
-    float2 upRight = sampleSearchArea(int2(x2, y1), searchArea);
-
-    float2 downLeft = sampleSearchArea(int2(x1, y2), searchArea);
-    float2 downRight = sampleSearchArea(int2(x2, y2), searchArea);
-
-    float2 up = lerp(upLeft, upRight, dx);
-    float2 down = lerp(downLeft, downRight, dx);
-
-    return lerp(up, down, dy);
-}
-
-float2 sampleSearchAreaBilinearCentered(float2 coord, float2 searchArea[SEARCH_AREA_AREA])
-{
-    float2 pos = coord + int2(SEARCH_AREA_HALF, SEARCH_AREA_HALF);
-    return sampleSearchAreaBilinear(pos, searchArea);
-}
-
-void getBlockFromSearchArea(float2 coord, float2 searchArea[SEARCH_AREA_AREA], out float2 block[BLOCK_AREA])
-{
-    [unroll]
-	for (int x = 0; x < BLOCK_SIZE; x++) 
-	{
-        [unroll]
-		for (int y = 0; y < BLOCK_SIZE; y++) 
-		{
-            float2 grayDepth = sampleSearchAreaBilinearCentered(coord + float2(x, y) - int2(BLOCK_SIZE_HALF, BLOCK_SIZE_HALF), searchArea);
-			block[(BLOCK_SIZE * y) + x] = grayDepth;
-		}
-	}
-}
-
-float getSearchAreaFeatureLevel(float2 block[SEARCH_AREA_AREA])
-{
-	float2 average = 0;
-	for (int i = 0; i < SEARCH_AREA_AREA; i++)
-		average += block[i];
-	average /= float(SEARCH_AREA_AREA);
-
-	float2 featureLevel = 0;
-	for (int i = 0; i < SEARCH_AREA_AREA; i++)
-		featureLevel += abs(block[i] - average);	
-    featureLevel /= float(SEARCH_AREA_AREA);
-
-    float grayWeight = (UI_ME_LOSS_GRAY_DEPTH_RATIO * 0.5) + 0.5;
-	return ((featureLevel.r * grayWeight) + (featureLevel.g * (1.0 - grayWeight)));
-}
-*/

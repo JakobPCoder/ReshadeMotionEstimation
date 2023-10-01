@@ -237,15 +237,6 @@ float4 MotionEstimation0PS(float4 position : SV_Position, float2 texcoord : TEXC
 	return curMotionEstimation;
 }
 
-float4 FinalFilterXPS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
-{
-	return tex2D(smpMCur0, texcoord);
-}
-
-float4 FinalFilterYPS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
-{
-	return tex2D(smpMotionFilterX, texcoord);
-}
 
 float2 MotionOutputPS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {
@@ -261,192 +252,6 @@ float4 OutputPS(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_
 
 	if (UI_DEBUG_ENABLE)
 	{
-	// 	switch (UI_DEBUG_MODE)
-	// 	{
-	// 		//Show Grayscale Image
-	// 		case 0:
-	// 		{
-	// 			switch (UI_DEBUG_LAYER)
-	// 			{
-	// 				case 0:
-	// 				returnValue = tex2D(smpGCur0, texcoord).r;
-	// 				break;
-	// 				case 1:
-	// 				returnValue = tex2D(smpGCur1, texcoord).r;
-	// 				break;
-	// 				case 2:
-	// 				returnValue = tex2D(smpGCur2, texcoord).r;
-	// 				break;
-	// 				case 3:
-	// 				returnValue = tex2D(smpGCur3, texcoord).r;
-	// 				break;
-	// 				case 4:
-	// 				returnValue = tex2D(smpGCur4, texcoord).r;
-	// 				break;
-	// 				case 5:
-	// 				returnValue = tex2D(smpGCur5, texcoord).r;
-	// 				break;
-	// 				case 6:
-	// 				returnValue = tex2D(smpGLast6, texcoord).r;
-	// 				break;
-	// 				default:
-	// 				break;
-	// 			}
-	// 		}
-	// 		break;
-
-	// 		//Show Depth
-	// 		case 1:
-	// 		{
-	// 			switch (UI_DEBUG_LAYER)
-	// 			{
-	// 				case 0:
-	// 				returnValue = tex2D(smpGCur0, texcoord).g;
-	// 				break;
-	// 				case 1:
-	// 				returnValue = tex2D(smpGCur1, texcoord).g;
-	// 				break;
-	// 				case 2:
-	// 				returnValue = tex2D(smpGCur2, texcoord).g;
-	// 				break;
-	// 				case 3:
-	// 				returnValue = tex2D(smpGCur3, texcoord).g;
-	// 				break;
-	// 				case 4:
-	// 				returnValue = tex2D(smpGCur4, texcoord).g;
-	// 				break;
-	// 				case 5:
-	// 				returnValue = tex2D(smpGCur5, texcoord).g;
-	// 				break;
-	// 				case 6:
-	// 				returnValue = tex2D(smpGCur6, texcoord).g;
-	// 				break;
-	// 				default:
-	// 				break;
-	// 			}
-	// 		}
-	// 		break;
-
-	// 		//Show Frame Difference
-	// 		case 2:
-	// 		{
-	// 			switch (UI_DEBUG_LAYER)
-	// 			{
-	// 				case 0:
-	// 				returnValue = abs(tex2D(smpGCur0, texcoord).r - tex2D(smpGLast0, texcoord)).r;
-	// 				break;
-	// 				case 1:
-	// 				returnValue = abs(tex2D(smpGCur1, texcoord).r - tex2D(smpGLast1, texcoord)).r;
-	// 				break;
-	// 				case 2:
-	// 				returnValue = abs(tex2D(smpGCur2, texcoord).r - tex2D(smpGLast2, texcoord)).r;
-	// 				break;
-	// 				case 3:
-	// 				returnValue = abs(tex2D(smpGCur3, texcoord).r - tex2D(smpGLast3, texcoord)).r;
-	// 				break;
-	// 				case 4:
-	// 				returnValue = abs(tex2D(smpGCur4, texcoord).r - tex2D(smpGLast4, texcoord)).r;
-	// 				break;
-	// 				case 5:
-	// 				returnValue = abs(tex2D(smpGCur5, texcoord).r - tex2D(smpGLast5, texcoord)).r;
-	// 				break;
-	// 				case 6:
-	// 				returnValue = abs(tex2D(smpGCur6, texcoord).r - tex2D(smpGLast6, texcoord)).r;
-	// 				break;
-	// 				default:
-	// 				break;
-	// 			}
-	// 		}
-	// 		break;
-
-	// 		//Feature Level
-	// 		case 3:
-	// 		{
-	// 			float2 block[BLOCK_AREA];
-	// 			switch (UI_DEBUG_LAYER)
-	// 			{
-	// 				case 0:
-	// 				getBlock(texcoord, block, smpGCur0);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 1:
-	// 				getBlock(texcoord, block, smpGCur1);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 2:
-	// 				getBlock(texcoord, block, smpGCur2);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 3:
-	// 				getBlock(texcoord, block, smpGCur3);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 4:
-	// 				getBlock(texcoord, block, smpGCur4);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 5:
-	// 				getBlock(texcoord, block, smpGCur5);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				case 6:
-	// 				getBlock(texcoord, block, smpGCur6);
-	// 				returnValue = getBlockFeatureLevel(block);
-	// 				break;
-	// 				default:
-	// 				break;
-	// 			}
-	// 		}
-	// 		break;
-
-	// 		//Motion
-	// 		case 4:
-	// 		{
-	// 			switch (UI_DEBUG_LAYER)
-	// 			{
-	// 				case 0:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur0, texcoord)));
-	// 				break;
-	// 				case 1:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur1, texcoord)));
-	// 				break;
-	// 				case 2:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur2, texcoord)));
-	// 				break;
-	// 				case 3:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur3, texcoord)));
-	// 				break;
-	// 				case 4:
-	// 				returnValue =  motionToLgbtq(motionFromGBuffer(tex2D(smpMCur4, texcoord)));
-	// 				break;
-	// 				case 5:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur5, texcoord)));
-	// 				break;
-	// 				case 6:
-	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur6, texcoord)));
-	// 				break;
-	// 				default:
-	// 				break;
-	// 			}
-	// 		}
-	// 		break;
-	// 		//Final Output
-	// 		case 5:
-	// 		{
-	// 			returnValue =  motionToLgbtq(tex2D(SamplerMotionVectors, texcoord).rg);
-	// 		}
-	// 		break;
-	// 		//Velocity Buffer
-	// 		case 6:
-	// 		{
-	// 			returnValue = float4(((tex2D(SamplerMotionVectors, texcoord).rg * 0.5 * UI_DEBUG_MULT) + 0.5), 0, 0);
-	// 		}
-	// 		break;	
-
-	// 		default:
-	// 		break;
-	// 	}
-
 		returnValue =  motionToLgbtq(tex2D(SamplerMotionVectors, texcoord).rg);
 	}
 	else
@@ -469,7 +274,6 @@ technique DRME
 		RenderTarget0 = texCur0;
 		RenderTarget1 = texLast0;
 		RenderTarget2 = texGLast0;
-		//RenderTarget3 = texMotionLast0;	
 	}
 
 
@@ -478,42 +282,36 @@ technique DRME
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray1PS;
 		RenderTarget0 = texGLast1;
-		//RenderTarget1 = texMotionLast1;
 	}
 	pass SaveGray2Pass
 	{
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray2PS;
 		RenderTarget0 = texGLast2;
-		//RenderTarget1 = texMotionLast2;
 	}
 	pass SaveGray3Pass
 	{
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray3PS;
 		RenderTarget0 = texGLast3;
-		//RenderTarget1 = texMotionLast3;
 	}
 	pass SaveGray4Pass
 	{
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray4PS;
 		RenderTarget0 = texGLast4;
-		//RenderTarget1 = texMotionLast4;
 	}
 	pass SaveGray5Pass
 	{
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray5PS;
 		RenderTarget0 = texGLast5;
-		//RenderTarget1 = texMotionLast5;
 	}
 	pass SaveGray6Pass
 	{
 		VertexShader = PostProcessVS;
 		PixelShader =  SaveGray6PS;
 		RenderTarget0 = texGLast6;
-		//RenderTarget1 = texMotionLast6;
 	}
 
 
@@ -612,20 +410,6 @@ technique DRME
 	{
 		VertexShader = PostProcessVS;
 		PixelShader = MotionEstimation0PS;
-		RenderTarget = texMotionCur0;
-	}
-
-	pass FinalFilterXPass
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = FinalFilterXPS;
-		RenderTarget = texMotionFilterX;
-	}
-
-	pass FinalFilterXPass
-	{
-		VertexShader = PostProcessVS;
-		PixelShader = FinalFilterYPS;
 		RenderTarget = texMotionCur0;
 	}
 
