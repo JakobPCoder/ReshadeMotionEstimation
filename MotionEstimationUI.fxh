@@ -28,33 +28,26 @@ Notices:
 
 // UI
 //Block Matching
-uniform int UI_ME_LAYER_MAX <
-	ui_type = "combo";
-    ui_label = "Motion Estimation Detail";
-	ui_items = "Full\0Half\0Qarter\0";
-	ui_tooltip = "The highest Layer / Resolution Motion Estimation is performed on.\n\
-Motion Vectors Are than upscaled To Full Resolution. It's per Axis,\n\
-so Half Resolution means Quarter Pixels.\n\
-VERY HIGH PERFORMANCE IMPACT";
-    ui_category = "Motion Estimation Block Matching";
-> = 0;
+// uniform int UI_ME_LAYER_MAX <
+// 	ui_type = "combo";
+//     ui_label = "Motion Estimation Resolution";
+// 	ui_items = "Full\0Half\0Qarter\0";
+// 	ui_tooltip = "The highest Layer / Resolution Motion Estimation is performed on.\n\
+// Motion Vectors Are than upscaled To Full Resolution. It's per Axis,\n\
+// so Half Resolution means Quarter Pixels.\n\
+// VERY HIGH PERFORMANCE IMPACT";
+//     ui_category = "Motion Estimation Block Matching";
+// > = 0;
 
-uniform int UI_ME_LAYER_MIN < __UNIFORM_SLIDER_INT1
-	ui_min = 3; ui_max = 6; ui_step = 1;
-	ui_label = "Motion Estimation Range";
-	ui_tooltip = "The lowest Layer / Resolution Motion Estimation is performed on. Actual range is (2^Range).\n\
-Motion Estimation will break down and will produce inacurate Motion Vectors if a Pixel moves close to or more than (2^Range)\n\
-LOW PERFORMANCE IMPACT";
-	ui_category = "Motion Estimation Block Matching";
-> = 6;
+// uniform int UI_ME_LAYER_MIN < __UNIFORM_SLIDER_INT1
+// 	ui_min = 3; ui_max = 6; ui_step = 1;
+// 	ui_label = "Motion Estimation Range";
+// 	ui_tooltip = "The lowest Layer / Resolution Motion Estimation is performed on. Actual range is (2^Range).\n\
+// Motion Estimation will break down and will produce inacurate Motion Vectors if a Pixel moves close to or more than (2^Range)\n\
+// LOW PERFORMANCE IMPACT";
+// 	ui_category = "Motion Estimation Block Matching";
+// > = 6;
 
-uniform int  UI_ME_MAX_ITERATIONS_PER_LEVEL < __UNIFORM_SLIDER_INT1
-	ui_min = 1; ui_max = 3; ui_step = 1;
-	ui_tooltip = "Select how many Search Iterations are done per Layer. Each Iteration is 2x more precise than the last one.\n\
-HIGH PERFORMANCE IMPACT";
-	ui_label = "Search Iterations per Layer";
-	ui_category = "Motion Estimation Block Matching";
-> = 2;
 
 uniform int  UI_ME_SAMPLES_PER_ITERATION < __UNIFORM_SLIDER_INT1
 	ui_min = 3; ui_max = 9; ui_step = 1;
@@ -64,30 +57,60 @@ HIGH PERFORMANCE IMPACT";
 	ui_category = "Motion Estimation Block Matching";
 > = 5;
 
+
+uniform int  UI_ME_SUB_PIXEL_DETAIL < __UNIFORM_SLIDER_INT1
+	ui_min = 0; ui_max = 4; ui_step = 1;
+	ui_tooltip = "Select how many additional Search Iterations are to be done on the last Layer. Each Iteration is 2x more precise than the last one.\n\
+0 -> 1 pixel accuracy | 1 -> 1/2 pixel accuracy | 2 -> 1/4 pixel accuracy | 3 - 1/8 pixel | 4 - 1/16 pixel\n\
+HIGH PERFORMANCE IMPACT";
+	ui_label = "Sub Pixel Accuracy";
+	ui_category = "Motion Estimation Block Matching";
+> = 2;
+
 //Pyramid
+
+uniform int  UI_ME_PYRAMID_UPSCALE_SAMPLES < __UNIFORM_SLIDER_INT1
+	ui_min = 2; ui_max = 12; ui_step = 1;
+	ui_tooltip = "Select how many Samples are taken when Upscaling Vectors from one Layer to the Next.\n\
+MEDIUM PERFORMANCE IMPACT";
+	ui_label = "Uplscale Filer Samples";
+	ui_category = "Pyramid Upscaling";
+> = 7;
+
+
 uniform float  UI_ME_PYRAMID_UPSCALE_FILTER_RADIUS < __UNIFORM_SLIDER_FLOAT1
-	ui_min = 3.0; ui_max = 5.0; ui_step = 0.25;
+	ui_min = 1.0; ui_max = 16.0; ui_step = 1.0;
 	ui_tooltip = "Select how large the Filter Radius is when Upscaling Vectors from one Layer to the Next.\n\
 NO PERFORMANCE IMPACT";
 	ui_label = "Filer Radius";
 	ui_category = "Pyramid Upscaling";
-> = 4.0;
+> = 5.0;
 
-uniform int  UI_ME_PYRAMID_UPSCALE_FILTER_RINGS < __UNIFORM_SLIDER_INT1
-	ui_min = 3; ui_max = 5; ui_step = 1;
-	ui_tooltip = "Select how many Rings of Samples are taken when Upscaling Vectors from one Layer to the Next.\n\
-MEDIUM PERFORMANCE IMPACT";
-	ui_label = "Filer Rings";
-	ui_category = "Pyramid Upscaling";
-> = 3;
 
-uniform int  UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING < __UNIFORM_SLIDER_INT1
-	ui_min = 3; ui_max = 9; ui_step = 1;
-	ui_tooltip = "Select how many Samples are taken on the inner most Ring when Upscaling Vectors from one Layer to the Next.\n\
-HIGH PERFORMANCE IMPACT";
-	ui_label = "Samples on inner Ring";
-	ui_category = "Pyramid Upscaling";
-> = 5;
+// uniform int  UI_ME_PYRAMID_UPSCALE_FILTER_RINGS < __UNIFORM_SLIDER_INT1
+// 	ui_min = 3; ui_max = 5; ui_step = 1;
+// 	ui_tooltip = "Select how many Rings of Samples are taken when Upscaling Vectors from one Layer to the Next.\n\
+// MEDIUM PERFORMANCE IMPACT";
+// 	ui_label = "Filer Rings";
+// 	ui_category = "Pyramid Upscaling";
+// > = 3;
+
+
+// uniform int  UI_ME_PYRAMID_UPSCALE_FILTER_RINGS < __UNIFORM_SLIDER_INT1
+// 	ui_min = 3; ui_max = 5; ui_step = 1;
+// 	ui_tooltip = "Select how many Rings of Samples are taken when Upscaling Vectors from one Layer to the Next.\n\
+// MEDIUM PERFORMANCE IMPACT";
+// 	ui_label = "Filer Rings";
+// 	ui_category = "Pyramid Upscaling";
+// > = 3;
+
+// uniform int  UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING < __UNIFORM_SLIDER_INT1
+// 	ui_min = 3; ui_max = 9; ui_step = 1;
+// 	ui_tooltip = "Select how many Samples are taken on the inner most Ring when Upscaling Vectors from one Layer to the Next.\n\
+// HIGH PERFORMANCE IMPACT";
+// 	ui_label = "Samples on inner Ring";
+// 	ui_category = "Pyramid Upscaling";
+// > = 5;
 
 
 
@@ -98,20 +121,20 @@ uniform bool UI_DEBUG_ENABLE <
     ui_category = "Debug";
 > = false;
 
-uniform int UI_DEBUG_LAYER < __UNIFORM_SLIDER_INT1
-	ui_min = 0; ui_max = 6; ui_step = 1;
-    ui_label = "Pyramid Layer";
-	ui_tooltip = "Different Layers of the Pyramid";
-    ui_category = "Debug";
-> = 0;
+// uniform int UI_DEBUG_LAYER < __UNIFORM_SLIDER_INT1
+// 	ui_min = 0; ui_max = 6; ui_step = 1;
+//     ui_label = "Pyramid Layer";
+// 	ui_tooltip = "Different Layers of the Pyramid";
+//     ui_category = "Debug";
+// > = 0;
 
-uniform int UI_DEBUG_MODE <
-	ui_type = "combo";
-    ui_label = "Pyramid Data";
-	ui_items = "Gray\0Depth\0Frame Difference\0Feature Level\0Motion\0Final Motion\0Velocity Buffer\0Velocity Buffer 3D\0";
-	ui_tooltip = "What kind of stuff you wanna see";
-    ui_category = "Debug";
-> = 5;
+// uniform int UI_DEBUG_MODE <
+// 	ui_type = "combo";
+//     ui_label = "Pyramid Data";
+// 	ui_items = "Gray\0Depth\0Frame Difference\0Feature Level\0Motion\0Final Motion\0Velocity Buffer\0Velocity Buffer 3D\0";
+// 	ui_tooltip = "What kind of stuff you wanna see";
+//     ui_category = "Debug";
+// > = 5;
 
 uniform int UI_DEBUG_MOTION_ZERO <
 	ui_type = "combo";

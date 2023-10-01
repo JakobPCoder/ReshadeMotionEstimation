@@ -81,6 +81,9 @@ sampler smpGLast7 { Texture = texGLast7; AddressU = Clamp; AddressV = Clamp; Mip
 sampler smpMCur7 { Texture = texMotionCur7; AddressU = Clamp; AddressV = Clamp; MipFilter = Point; MinFilter = Point; MagFilter = Point; };
 //sampler smpMLast7 { Texture = texMotionLast7; AddressU = Clamp; AddressV = Clamp; MipFilter = Point; MinFilter = Point; MagFilter = Point; };
 
+sampler smpSmaaEdges { Texture = EdgesTex; AddressU = Clamp; AddressV = Clamp; MipFilter = Linear; MinFilter = Linear; MagFilter = Linear; };
+
+
 
 
 // Passes
@@ -160,13 +163,11 @@ float4 DownscaleGray6PS(float4 position : SV_Position, float2 texcoord : TEXCOOR
 
 
 #define TEMP_RESET_THRESH (0.01)
+
 //Estimate motion for each Level of the pyramid
 float4 MotionEstimation7PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {	 
-	float4 curMotionEstimation = 0;
-	[branch]
-	if (UI_ME_LAYER_MIN > 6)
-	 	curMotionEstimation = CalcMotionLayer(texcoord, float2(0, 0), smpGCur7, smpGLast7, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, float2(0, 0), smpGCur7, smpGLast7, 1);
 	return curMotionEstimation;
 
 }
@@ -174,83 +175,42 @@ float4 MotionEstimation7PS(float4 position : SV_Position, float2 texcoord : TEXC
 
 float4 MotionEstimation6PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {	 
-	float2 searchStart = float2(0, 0);
-	[branch]
-	if (UI_ME_LAYER_MIN > 6)
-	{
-		float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur6, smpGCur7, smpMCur7);
-		//if (UI_DEBUG_PYRAMID_MERGE)
-			searchStart = motionFromGBuffer(upscaledLowerLayer);
-	}
+	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur6, smpGCur7, smpMCur7);
 
-	float4 curMotionEstimation = 0;
-	[branch]
-	if (UI_ME_LAYER_MIN > 5)
-		curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur6, smpGLast6, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur6, smpGLast6, 1);
 	return curMotionEstimation;
 }
 
 
 float4 MotionEstimation5PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {	
-	float2 searchStart = float2(0, 0);
-	[branch]
-	if (UI_ME_LAYER_MIN > 5)
-	{
-		float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur5, smpGCur6, smpMCur6);
-		//if (UI_DEBUG_PYRAMID_MERGE)
-			searchStart = motionFromGBuffer(upscaledLowerLayer);
-	}
+	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur5, smpGCur6, smpMCur6);
 
-	float4 curMotionEstimation = 0;
-	[branch]
-	if (UI_ME_LAYER_MIN > 4)
-		curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur5, smpGLast5, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur5, smpGLast5, 1);
 	return curMotionEstimation;
 }
 
 float4 MotionEstimation4PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {			
-	float2 searchStart = float2(0, 0);
-	[branch]
-	if (UI_ME_LAYER_MIN > 4)
-	{
-		float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur4, smpGCur5, smpMCur5);
-		//if (UI_DEBUG_PYRAMID_MERGE)
-			searchStart = motionFromGBuffer(upscaledLowerLayer);
-	}
-	float4 curMotionEstimation = 0;
-	[branch]
-	if (UI_ME_LAYER_MIN > 3)
-		curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur4, smpGLast4, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur4, smpGCur5, smpMCur5);
+
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur4, smpGLast4, 1);
 	return curMotionEstimation;
 }
 
 float4 MotionEstimation3PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {	
+	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur3, smpGCur4, smpMCur4);	
 
-	float2 searchStart = float2(0, 0);
-	[branch]
-	if (UI_ME_LAYER_MIN > 3)
-	{
-		float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur3, smpGCur4, smpMCur4);
-		//if (UI_DEBUG_PYRAMID_MERGE)
-			searchStart = motionFromGBuffer(upscaledLowerLayer);
-	}
-		
-	float4 curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur3, smpGLast3, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur3, smpGLast3, 1);
 	return curMotionEstimation;
 }
 
 float4 MotionEstimation2PS(float4 position : SV_Position, float2 texcoord : TEXCOORD ) : SV_Target
 {	
 	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur2, smpGCur3, smpMCur3);
-	float2 searchStart = float2(0, 0);
-
-	//if (UI_DEBUG_PYRAMID_MERGE)
-		searchStart = motionFromGBuffer(upscaledLowerLayer);
-		
-	float4 curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur2, smpGLast2, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur2, smpGLast2, 1);
 	return curMotionEstimation;
 }
 
@@ -258,14 +218,10 @@ float4 MotionEstimation1PS(float4 position : SV_Position, float2 texcoord : TEXC
 {	
 	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur1, smpGCur2, smpMCur2);
 
-	if (UI_ME_LAYER_MAX > 1)
-		return upscaledLowerLayer;
+	// if (UI_ME_LAYER_MAX > 1)
+	// 	return upscaledLowerLayer;
 
-	float2 searchStart = float2(0, 0);
-	//if (UI_DEBUG_PYRAMID_MERGE)
-		searchStart = motionFromGBuffer(upscaledLowerLayer);
-	
-	float4 curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur1, smpGLast1, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur1, smpGLast1, 1);
 	return curMotionEstimation;
 
 }
@@ -274,14 +230,10 @@ float4 MotionEstimation0PS(float4 position : SV_Position, float2 texcoord : TEXC
 {	
 	float4 upscaledLowerLayer = UpscaleMotion(texcoord, smpGCur0, smpGCur1, smpMCur1);
 
-	if (UI_ME_LAYER_MAX > 0)
-		return upscaledLowerLayer;
-
-	float2 searchStart = float2(0, 0);
-	//if (UI_DEBUG_PYRAMID_MERGE)
-		searchStart = motionFromGBuffer(upscaledLowerLayer);
+	// if (UI_ME_LAYER_MAX > 0)
+	// 	return upscaledLowerLayer;
 		
-	float4 curMotionEstimation = CalcMotionLayer(texcoord, searchStart, smpGCur0, smpGLast0, UI_ME_MAX_ITERATIONS_PER_LEVEL);
+	float4 curMotionEstimation = CalcMotionLayer(texcoord, motionFromGBuffer(upscaledLowerLayer), smpGCur0, smpGLast0, 1 + UI_ME_SUB_PIXEL_DETAIL);
 	return curMotionEstimation;
 }
 
@@ -307,194 +259,195 @@ float4 OutputPS(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_
 {	
 	float4 returnValue = 0;
 
-	//this will be preprocessor later
 	if (UI_DEBUG_ENABLE)
 	{
-		switch (UI_DEBUG_MODE)
-		{
-			//Show Grayscale Image
-			case 0:
-			{
-				switch (UI_DEBUG_LAYER)
-				{
-					case 0:
-					returnValue = tex2D(smpGCur0, texcoord).r;
-					break;
-					case 1:
-					returnValue = tex2D(smpGCur1, texcoord).r;
-					break;
-					case 2:
-					returnValue = tex2D(smpGCur2, texcoord).r;
-					break;
-					case 3:
-					returnValue = tex2D(smpGCur3, texcoord).r;
-					break;
-					case 4:
-					returnValue = tex2D(smpGCur4, texcoord).r;
-					break;
-					case 5:
-					returnValue = tex2D(smpGCur5, texcoord).r;
-					break;
-					case 6:
-					returnValue = tex2D(smpGLast6, texcoord).r;
-					break;
-					default:
-					break;
-				}
-			}
-			break;
+	// 	switch (UI_DEBUG_MODE)
+	// 	{
+	// 		//Show Grayscale Image
+	// 		case 0:
+	// 		{
+	// 			switch (UI_DEBUG_LAYER)
+	// 			{
+	// 				case 0:
+	// 				returnValue = tex2D(smpGCur0, texcoord).r;
+	// 				break;
+	// 				case 1:
+	// 				returnValue = tex2D(smpGCur1, texcoord).r;
+	// 				break;
+	// 				case 2:
+	// 				returnValue = tex2D(smpGCur2, texcoord).r;
+	// 				break;
+	// 				case 3:
+	// 				returnValue = tex2D(smpGCur3, texcoord).r;
+	// 				break;
+	// 				case 4:
+	// 				returnValue = tex2D(smpGCur4, texcoord).r;
+	// 				break;
+	// 				case 5:
+	// 				returnValue = tex2D(smpGCur5, texcoord).r;
+	// 				break;
+	// 				case 6:
+	// 				returnValue = tex2D(smpGLast6, texcoord).r;
+	// 				break;
+	// 				default:
+	// 				break;
+	// 			}
+	// 		}
+	// 		break;
 
-			//Show Depth
-			case 1:
-			{
-				switch (UI_DEBUG_LAYER)
-				{
-					case 0:
-					returnValue = tex2D(smpGCur0, texcoord).g;
-					break;
-					case 1:
-					returnValue = tex2D(smpGCur1, texcoord).g;
-					break;
-					case 2:
-					returnValue = tex2D(smpGCur2, texcoord).g;
-					break;
-					case 3:
-					returnValue = tex2D(smpGCur3, texcoord).g;
-					break;
-					case 4:
-					returnValue = tex2D(smpGCur4, texcoord).g;
-					break;
-					case 5:
-					returnValue = tex2D(smpGCur5, texcoord).g;
-					break;
-					case 6:
-					returnValue = tex2D(smpGCur6, texcoord).g;
-					break;
-					default:
-					break;
-				}
-			}
-			break;
+	// 		//Show Depth
+	// 		case 1:
+	// 		{
+	// 			switch (UI_DEBUG_LAYER)
+	// 			{
+	// 				case 0:
+	// 				returnValue = tex2D(smpGCur0, texcoord).g;
+	// 				break;
+	// 				case 1:
+	// 				returnValue = tex2D(smpGCur1, texcoord).g;
+	// 				break;
+	// 				case 2:
+	// 				returnValue = tex2D(smpGCur2, texcoord).g;
+	// 				break;
+	// 				case 3:
+	// 				returnValue = tex2D(smpGCur3, texcoord).g;
+	// 				break;
+	// 				case 4:
+	// 				returnValue = tex2D(smpGCur4, texcoord).g;
+	// 				break;
+	// 				case 5:
+	// 				returnValue = tex2D(smpGCur5, texcoord).g;
+	// 				break;
+	// 				case 6:
+	// 				returnValue = tex2D(smpGCur6, texcoord).g;
+	// 				break;
+	// 				default:
+	// 				break;
+	// 			}
+	// 		}
+	// 		break;
 
-			//Show Frame Difference
-			case 2:
-			{
-				switch (UI_DEBUG_LAYER)
-				{
-					case 0:
-					returnValue = abs(tex2D(smpGCur0, texcoord).r - tex2D(smpGLast0, texcoord)).r;
-					break;
-					case 1:
-					returnValue = abs(tex2D(smpGCur1, texcoord).r - tex2D(smpGLast1, texcoord)).r;
-					break;
-					case 2:
-					returnValue = abs(tex2D(smpGCur2, texcoord).r - tex2D(smpGLast2, texcoord)).r;
-					break;
-					case 3:
-					returnValue = abs(tex2D(smpGCur3, texcoord).r - tex2D(smpGLast3, texcoord)).r;
-					break;
-					case 4:
-					returnValue = abs(tex2D(smpGCur4, texcoord).r - tex2D(smpGLast4, texcoord)).r;
-					break;
-					case 5:
-					returnValue = abs(tex2D(smpGCur5, texcoord).r - tex2D(smpGLast5, texcoord)).r;
-					break;
-					case 6:
-					returnValue = abs(tex2D(smpGCur6, texcoord).r - tex2D(smpGLast6, texcoord)).r;
-					break;
-					default:
-					break;
-				}
-			}
-			break;
+	// 		//Show Frame Difference
+	// 		case 2:
+	// 		{
+	// 			switch (UI_DEBUG_LAYER)
+	// 			{
+	// 				case 0:
+	// 				returnValue = abs(tex2D(smpGCur0, texcoord).r - tex2D(smpGLast0, texcoord)).r;
+	// 				break;
+	// 				case 1:
+	// 				returnValue = abs(tex2D(smpGCur1, texcoord).r - tex2D(smpGLast1, texcoord)).r;
+	// 				break;
+	// 				case 2:
+	// 				returnValue = abs(tex2D(smpGCur2, texcoord).r - tex2D(smpGLast2, texcoord)).r;
+	// 				break;
+	// 				case 3:
+	// 				returnValue = abs(tex2D(smpGCur3, texcoord).r - tex2D(smpGLast3, texcoord)).r;
+	// 				break;
+	// 				case 4:
+	// 				returnValue = abs(tex2D(smpGCur4, texcoord).r - tex2D(smpGLast4, texcoord)).r;
+	// 				break;
+	// 				case 5:
+	// 				returnValue = abs(tex2D(smpGCur5, texcoord).r - tex2D(smpGLast5, texcoord)).r;
+	// 				break;
+	// 				case 6:
+	// 				returnValue = abs(tex2D(smpGCur6, texcoord).r - tex2D(smpGLast6, texcoord)).r;
+	// 				break;
+	// 				default:
+	// 				break;
+	// 			}
+	// 		}
+	// 		break;
 
-			//Feature Level
-			case 3:
-			{
-				float2 block[BLOCK_AREA];
-				switch (UI_DEBUG_LAYER)
-				{
-					case 0:
-					getBlock(texcoord, block, smpGCur0);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 1:
-					getBlock(texcoord, block, smpGCur1);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 2:
-					getBlock(texcoord, block, smpGCur2);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 3:
-					getBlock(texcoord, block, smpGCur3);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 4:
-					getBlock(texcoord, block, smpGCur4);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 5:
-					getBlock(texcoord, block, smpGCur5);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					case 6:
-					getBlock(texcoord, block, smpGCur6);
-					returnValue = getBlockFeatureLevel(block);
-					break;
-					default:
-					break;
-				}
-			}
-			break;
+	// 		//Feature Level
+	// 		case 3:
+	// 		{
+	// 			float2 block[BLOCK_AREA];
+	// 			switch (UI_DEBUG_LAYER)
+	// 			{
+	// 				case 0:
+	// 				getBlock(texcoord, block, smpGCur0);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 1:
+	// 				getBlock(texcoord, block, smpGCur1);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 2:
+	// 				getBlock(texcoord, block, smpGCur2);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 3:
+	// 				getBlock(texcoord, block, smpGCur3);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 4:
+	// 				getBlock(texcoord, block, smpGCur4);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 5:
+	// 				getBlock(texcoord, block, smpGCur5);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				case 6:
+	// 				getBlock(texcoord, block, smpGCur6);
+	// 				returnValue = getBlockFeatureLevel(block);
+	// 				break;
+	// 				default:
+	// 				break;
+	// 			}
+	// 		}
+	// 		break;
 
-			//Motion
-			case 4:
-			{
-				switch (UI_DEBUG_LAYER)
-				{
-					case 0:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur0, texcoord)));
-					break;
-					case 1:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur1, texcoord)));
-					break;
-					case 2:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur2, texcoord)));
-					break;
-					case 3:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur3, texcoord)));
-					break;
-					case 4:
-					returnValue =  motionToLgbtq(motionFromGBuffer(tex2D(smpMCur4, texcoord)));
-					break;
-					case 5:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur5, texcoord)));
-					break;
-					case 6:
-					returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur6, texcoord)));
-					break;
-					default:
-					break;
-				}
-			}
-			break;
-			//Final Output
-			case 5:
-			{
-				returnValue =  motionToLgbtq(tex2D(SamplerMotionVectors, texcoord).rg);
-			}
-			break;
-			//Velocity Buffer
-			case 6:
-			{
-				returnValue = float4(((tex2D(SamplerMotionVectors, texcoord).rg * 0.5 * UI_DEBUG_MULT) + 0.5), 0, 0);
-			}
-			break;	
+	// 		//Motion
+	// 		case 4:
+	// 		{
+	// 			switch (UI_DEBUG_LAYER)
+	// 			{
+	// 				case 0:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur0, texcoord)));
+	// 				break;
+	// 				case 1:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur1, texcoord)));
+	// 				break;
+	// 				case 2:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur2, texcoord)));
+	// 				break;
+	// 				case 3:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur3, texcoord)));
+	// 				break;
+	// 				case 4:
+	// 				returnValue =  motionToLgbtq(motionFromGBuffer(tex2D(smpMCur4, texcoord)));
+	// 				break;
+	// 				case 5:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur5, texcoord)));
+	// 				break;
+	// 				case 6:
+	// 				returnValue = motionToLgbtq(motionFromGBuffer(tex2D(smpMCur6, texcoord)));
+	// 				break;
+	// 				default:
+	// 				break;
+	// 			}
+	// 		}
+	// 		break;
+	// 		//Final Output
+	// 		case 5:
+	// 		{
+	// 			returnValue =  motionToLgbtq(tex2D(SamplerMotionVectors, texcoord).rg);
+	// 		}
+	// 		break;
+	// 		//Velocity Buffer
+	// 		case 6:
+	// 		{
+	// 			returnValue = float4(((tex2D(SamplerMotionVectors, texcoord).rg * 0.5 * UI_DEBUG_MULT) + 0.5), 0, 0);
+	// 		}
+	// 		break;	
 
-			default:
-			break;
-		}
+	// 		default:
+	// 		break;
+	// 	}
+
+		returnValue =  motionToLgbtq(tex2D(SamplerMotionVectors, texcoord).rg);
 	}
 	else
 	{

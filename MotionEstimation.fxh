@@ -38,7 +38,7 @@ Notices:
 
 // Preprocessor settings
 #ifndef PRE_BLOCK_SIZE_2_TO_7
- #define PRE_BLOCK_SIZE_2_TO_7	4   //[2 - 7]     
+ #define PRE_BLOCK_SIZE_2_TO_7	3   //[2 - 7]     
 #endif
 
 
@@ -108,6 +108,9 @@ texture texGLast7 < pooled = false; > { Width = BUFFER_WIDTH / ME_PYR_LVL_7_DIV;
 texture texMotionCur7 < pooled = false; > { Width = BUFFER_WIDTH / ME_PYR_LVL_7_DIV; Height = BUFFER_HEIGHT / ME_PYR_LVL_7_DIV; Format = RGBA16F; };
 //texture texMotionLast7 < pooled = false; > { Width = BUFFER_WIDTH / ME_PYR_LVL_7_DIV; Height = BUFFER_HEIGHT / ME_PYR_LVL_7_DIV; Format = RGBA16F; };
 
+//smaa edge texture 
+texture EdgesTex < pooled = true; > {	Width = BUFFER_WIDTH;	    Height = BUFFER_HEIGHT;	    Format = RG8;   };
+
 uniform int framecount < source = "framecount"; >;
 
 // Search Block
@@ -131,12 +134,6 @@ float2 sampleBlock(int2 coord, float2 block[BLOCK_AREA])
     return block[(BLOCK_SIZE * coord.y) + coord.x];
 }
 
-float2 sampleBlockCenterded(int2 coord, float2 block[BLOCK_AREA])
-{
-    int2 pos = coord + int2(BLOCK_SIZE_HALF, BLOCK_SIZE_HALF); 
-    return sampleBlock(pos, block);
-}
-
 //Feature Level
 float getBlockFeatureLevel(float2 block[BLOCK_AREA])
 {
@@ -149,36 +146,7 @@ float getBlockFeatureLevel(float2 block[BLOCK_AREA])
 	for (int i = 0; i < BLOCK_AREA; i++)
 		diff += abs(block[i] - average);	
     diff /= float(BLOCK_AREA);
-	
-	/*static const float sobelX[BLOCK_AREA] = {
-		2, 3, 4, 3, 2,
-		3, 5, 6, 5, 3,
-		0, 0, 0, 0, 0,
-	   -3,-5,-6,-5,-3,
-	   -2,-3,-4,-3,-2
-	};
 
-	static const float sobelY[BLOCK_AREA] = {
-		2, 3, 0,-3,-2,
-		3, 5, 0,-5,-3,
-		4, 6, 0,-6,-4,
-		3, 5, 0,-5,-3,
-		2, 3, 0,-3,-2
-	};
-
-	float2 gX = 0; 
-	float2 gY = 0;
-	for (int i = 0; i < BLOCK_AREA; i++)
-	{
-		gX += block[i] * sobelX[i];
-		gY += block[i] * sobelY[i];
-	}
-	
-
-	float2 edge = ((gX * gX) + (gY * gY)) * 0.01;
-	float weightedEdge = (edge.x * 0.8) + (edge.y * 0.2);
-
-	weightedEdge = clamp((weightedEdge - 0.1) * 0.5, 0.0, 0.5);*/
 	float noise = saturate(diff.x * 2);
     return noise;
 }
@@ -301,94 +269,109 @@ float4 CalcMotionLayer(float2 coord, float2 searchStart, sampler curBuffer, samp
 
 	//Keep Track of stuff while searching
 	float lowestLoss = localLoss;
-	float featuresAtLowestLoss = getBlockFeatureLevel(searchBlock);
+	float featuresAtLowestLoss = localFeatures;
 	float2 bestMotion = float2(0, 0);
 	float2 searchCenter = searchStart;
 
-	/*[flatten] if (localFeatures < 0.005)
-	{
-		return packGbuffer(searchCenter, 0, 1); 
-	}
-	else*/
-	{
-		float randomValue = randFloatSeed2(coord) * 100;
-		randomValue += randFloatSeed2(float2(randomValue, float(framecount % uint(16)))) * 100;
-		
-		//iterate for better accuracy
-		[loop]
-		for (int i = 0; i < iterations; i++) 
-		{
-			randomValue = randFloatSeed2(float2(randomValue, i * 16)) * 100;
-			//through Neighborhood and find Offset with lowest blockLoss
-			[loop]
-			for (int s = 0; s < UI_ME_SAMPLES_PER_ITERATION; s++) 
-			{
-				float2 pixelOffset = (getCircleSampleOffset(UI_ME_SAMPLES_PER_ITERATION, 1, s, randomValue) / tex2Dsize(lastBuffer)) / pow(2, i);
-				float2 samplePos = coord + searchCenter + pixelOffset;
-				float2 searchBlockB[BLOCK_AREA];
-				getBlock(samplePos, searchBlockB, lastBuffer);
-				float loss = blockLoss(localBlock, searchBlockB);
 
-				[flatten]
-				if (loss < lowestLoss)
-				{
-					lowestLoss = loss;
-					bestMotion = pixelOffset;
-					featuresAtLowestLoss = getBlockFeatureLevel(searchBlockB);
-				}
+	float randomValue = randFloatSeed2(coord) * 100;
+	randomValue += randFloatSeed2(float2(randomValue, float(framecount % uint(16)))) * 360;
+	
+	//iterate for better accuracy
+	for (int i = 0; i < iterations; i++) 
+	{
+		randomValue = randFloatSeed2(float2(randomValue, i * 16)) * 100;
+		//through Neighborhood and find Offset with lowest blockLoss
+		for (int s = 0; s < UI_ME_SAMPLES_PER_ITERATION; s++) 
+		{
+			float2 pixelOffset = (getCircleSampleOffset(UI_ME_SAMPLES_PER_ITERATION, 1, s, randomValue) / tex2Dsize(lastBuffer)) / pow(2, i);
+			float2 samplePos = coord + searchCenter + pixelOffset;
+			float2 searchBlockB[BLOCK_AREA];
+			getBlock(samplePos, searchBlockB, lastBuffer);
+			float loss = blockLoss(localBlock, searchBlockB);
+
+			if (loss < lowestLoss)
+			{
+				lowestLoss = loss;
+				bestMotion = pixelOffset;
+				featuresAtLowestLoss = getBlockFeatureLevel(searchBlockB);
 			}
-			searchCenter += bestMotion;
-			bestMotion = float2(0, 0);
 		}
-		return packGbuffer(searchCenter, featuresAtLowestLoss, lowestLoss); 
+		searchCenter += bestMotion;
+		bestMotion = float2(0, 0);
 	}
+	return packGbuffer(searchCenter, featuresAtLowestLoss, lowestLoss); 
+
 }
 
 //Upscale to next Pyramid layer while supressing wrong / unlikely vectors
 float4 UpscaleMotion(float2 texcoord, sampler curLevelGray, sampler lowLevelGray, sampler lowLevelMotion)
 {
 	float localDepth = tex2D(curLevelGray, texcoord).g;
-	float summedWeights = 0.0;
-	float2 summedMotion = float2(0, 0);
-	float summedFeatures = 0.0;
-	float summedLoss = 0.0;
 
-	float randomValue = randFloatSeed2(texcoord) * 100;
-	randomValue += randFloatSeed2(float2(randomValue, float(framecount % uint(16)))) * 100;
-	const float distPerCircle = UI_ME_PYRAMID_UPSCALE_FILTER_RADIUS / UI_ME_PYRAMID_UPSCALE_FILTER_RINGS;
+	float summedWeights = 0.00001;
+	float4 summedMotion = 0;
 
+	float randomAngle = randFloatSeed2(texcoord) * 100;
+	randomAngle = randFloatSeed2(float2(randomAngle, float(framecount % uint(8)))) * 360;
+
+
+	for (int s = 0; s < UI_ME_PYRAMID_UPSCALE_SAMPLES; s++)	
+	{
+		float randomDistBase = randFloatSeed2(float2(randomAngle, s * 100)) * 100;
+		float dist = 0.5 + ((randomDistBase) % uint(UI_ME_PYRAMID_UPSCALE_FILTER_RADIUS));
+
+
+		float2 pixelOffset = getCircleSampleOffset(UI_ME_PYRAMID_UPSCALE_SAMPLES, dist, s, randomAngle) / tex2Dsize(lowLevelMotion);
+		float2 samplePos = texcoord + pixelOffset;
+		
+		float4 motionSampleLowLevel = tex2D(lowLevelMotion, samplePos);
+
+		float weightSpeed  		= 1.0 / (1.0 + (length(motionSampleLowLevel.rg * tex2Dsize(lowLevelMotion) * 0.1)));
+		float weightFeatures   	= 0.5 + (motionSampleLowLevel.b * 3);
+
+		float weight = weightSpeed * weightSpeed;
+
+		summedWeights += weight;
+		summedMotion += weight * motionSampleLowLevel;
+	}
 
 
 	//sample and weight neighborhood pixels ond multipe circles around the center
-	[loop]
-	for (int r = 0; r < UI_ME_PYRAMID_UPSCALE_FILTER_RINGS; r++)	
-	{
-		int sampleCount = clamp(UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING / ((r * 0.5) + 1), 1, UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING);
-		float radius = distPerCircle * (r + 1);
-		float circleWeight = 1.0 / (r + 1);
-		randomValue += randFloatSeed2(float2(randomValue, r * 10)) * 100;
-		[loop]
-		for (int i = 0; i < sampleCount; i++)
-		{
-			float2 samplePos = texcoord + (getCircleSampleOffset(sampleCount, radius, i, randomValue) / tex2Dsize(lowLevelGray));
-			float nDepth = tex2D(lowLevelGray, samplePos).r;
-			float4 llGBuffer = tex2D(lowLevelMotion, samplePos);
-			float loss = llGBuffer.a;
-			float features = llGBuffer.b;
+	// [loop]
+	// for (int r = 0; r < UI_ME_PYRAMID_UPSCALE_FILTER_RINGS; r++)	
+	// {
 
-			float weightDepth = saturate(1.0 - (abs(nDepth - localDepth) * 1));
-			float weightLoss = saturate(1.0 - (loss * 1));
-			float weightFeatures = saturate((features * 100));
-			float weightLength = saturate(1.0 - (length(motionFromGBuffer(llGBuffer) * 1)));
-			float weight = saturate(0.000001 + (weightFeatures * weightLoss * weightDepth * weightLength * circleWeight));
 
-			summedWeights += weight;
-			summedMotion += motionFromGBuffer(llGBuffer) * weight;
-			summedFeatures += features * weight;
-			summedLoss += loss * weight;
-		}
-	}
-	return packGbuffer(summedMotion / summedWeights, summedFeatures / summedWeights, summedLoss / summedWeights);
+	// 	int sampleCount = clamp(UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING / ((r * 0.5) + 1), 1, UI_ME_PYRAMID_UPSCALE_FILTER_SAMPLES_PER_RING);
+	// 	float radius = distPerCircle * (r + 1);
+	// 	float circleWeight = 1.0 / (r + 1);
+	// 	randomValue += randFloatSeed2(float2(randomValue, r * 10)) * 100;
+	// 	[loop]
+	// 	for (int i = 0; i < sampleCount; i++)
+	// 	{
+	// 		float2 samplePos = texcoord + (getCircleSampleOffset(sampleCount, radius, i, randomValue) / tex2Dsize(lowLevelGray));
+	// 		float nDepth = tex2D(lowLevelGray, samplePos).r;
+	// 		float4 llGBuffer = tex2D(lowLevelMotion, samplePos);
+	// 		float loss = llGBuffer.a;
+	// 		float features = llGBuffer.b;
+
+	// 		float weightDepth = saturate(1.0 - (abs(nDepth - localDepth) * 1));
+	// 		float weightLoss = saturate(1.0 - (loss * 1));
+	// 		float weightFeatures = saturate((features * 100));
+	// 		float weightLength = saturate(1.0 - (length(motionFromGBuffer(llGBuffer) * 1)));
+	// 		float weight = saturate(0.000001 + (weightFeatures * weightLoss * weightDepth * weightLength * circleWeight));
+
+	// 		summedWeights += weight;
+	// 		summedMotion += motionFromGBuffer(llGBuffer) * weight;
+	// 		summedFeatures += features * weight;
+	// 		summedLoss += loss * weight;
+	// 	}
+	// }
+
+
+	
+	return summedMotion / summedWeights;
 }
 
 
